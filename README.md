@@ -8,4 +8,4 @@ Twitter data was extracted using the twitteR library using the following hashtag
 4. '#Opera'
 5. '#Classicfm'
 
-The purpose of the study is to understand how people are perceiving classical music. 
+The purpose of the study is to understand how people are perceiving classical music by examining the emojis they use. 
