@@ -1,7 +1,6 @@
 #EmojiData Analysis
-# this is an analysis based on the tutorial provided by 
-getwd()
-ls()
+# this is an analysis based on the tutorial provided by Prismoji
+# I changed some of the codes to be compatible to dplyr and tidyr
 setwd("/Users/jasonchiu0803/Desktop/data_science_projects/emoji_analysis")
 
 #downloading and loading necessary packages
@@ -19,10 +18,10 @@ library(ggplot2)
 library(htmltools)
 
 #Setting up twitter 
-api_key <- 'vqkC5KKVv7q56WI3ItfzVLWvg'
-api_secret <- 'KLeHGMATYpCtlBGGzc7PrTr5cAseitCku8pTqloyOvx6W4BTfH'
-access_token <- '4827569197-a2KGhNPs3jNEIsDoIe72ylKORpYt4JGDv8Uy88X'
-access_token_secret <- 'Lls08SALl3kOIc2OpeIYQBcFeGCpOtNztzOq9oa4W1KvC'
+api_key <- '...'
+api_secret <- '...'
+access_token <- '...'
+access_token_secret <- '...'
 setup_twitter_oauth(api_key, api_secret, access_token, access_token_secret)
 
 # downloading tweets with the following hashtags or keywords
@@ -202,6 +201,161 @@ ncol(df)
 # the df has 3687 rows * 21 cols
 #saving the datafile to a csv
 write.csv(df, "musictweets_9.2.17.csv")
+
+#read in emoji dictionary - code copied from tutorial 
+emdict.la <- read.csv('emoticon_conversion_noGraphic.csv', header = F)
+View(emdict.la)
+# get ride of the header row
+emdict.la <- emdict.la[-1, ]
+#remove all row names
+row.names(emdict.la) <- NULL
+#assign new row names
+names(emdict.la) <- c('unicode', 'bytes', 'name')
+#adding emojiid - row number
+emdict.la$emojiid <- row.names(emdict.la)
+
+#read in second 
+emdict.jpb <- read.csv('emDict.csv', header = F)
+emdict.jpb <- emdict.jpb[-1, ]
+row.names(emdict.jpb) <- NULL
+names(emdict.jpb) <- c('name', 'bytes', 'rencoding')
+emdict.jpb$name <- tolower(emdict.jpb$name)
+emdict.jpb$bytes <- NULL
+
+emojis <- merge(emdict.la, emdict.jpb, by = 'name')
+emojis$emojiid <- as.numeric(emojis$emojiid)
+emojis <- arrange(emojis, emojiid)
+
+View(emojis)
+dim(emojis)
+# 841 * 5
+#combined emoji dataset - name of the emoji, unicode, bytes - original text, 
+# emohiid, rencoding (R coding of the emoji)
+
+# creating a matrix with all NAs with nrow = number of tweets,
+# and ncol = number of emojis
+df.s <- matrix(NA, nrow = nrow(df), ncol = ncol(emojis))
+dim(df.s)
+
+#sapply regexpr (finding patterns) using rencoding as patterns to iterate
+# through the tweets, case insensitive, and use bytes by bytes rather than
+# character by character
+system.time(df.s <- sapply(emojis$rencoding, regexpr, df$text, ignore.case =T,
+                           useBytes = T))
+# View(df.s)
+# this will create a sparse matrix (when use in sapply it returns the number
+# of first index where the pattern appears and if the pattern does not exist
+# it returns -1)
+names(df)
+rownames(df.s) <- 1:nrow(df.s)
+colnames(df.s) <- 1:ncol(df.s)
+# converting df.s to data frame
+df.t <- data.frame(df.s)
+# copy tweeter id from the original database
+df.t$tweetid <- df$id
+#grabbing hashtag from original dataset
+df.hash <- df %>% dplyr::select(id, hashtag)
+df.u <- dplyr::left_join(df.t, df.hash, by = c("tweetid"="id")) 
+dim(df.u)
+# 3687 * 843
+
+df.u <- df.u %>% dplyr::arrange(tweetid)
+tweets.emojis.matrix <- df.u
+names(tweets.emojis.matrix)
+
+## create emoji count dataset
+df_noid <- tweets.emojis.matrix[, c(1:841)]
+count <- colSums(df_noid > -1)
+summary(count)
+which(count[2:length(count)] == max(count[2:length(count)]))
+count[2:length(count)][which(count[2:length(count)] == max(count[2:length(count)]))]
+# X396 is the most prevalent emoji with 53 tweets
+length(count)
+dim(emojis)
+
+# adding count back to the original dataset
+emojis.m <- cbind(count, emojis)
+emojis.m <- dplyr::arrange(emojis.m, desc(count))
+View(emojis.m)
+total_emoji_used <- sum(emojis.m$count)
+# a total of 546 emojis were used
+unique_emojis <- emojis.m %>% dplyr::filter(count >= 1) %>% dplyr::summarise(tweets_with_emo = n())
+# a total of 120 different emojis were used
+
+# selecting emojis with more than one use
+emojis.count <- emojis.m %>% dplyr::filter(count > 1)
+# density = # of times an emoji is used/total number of tweets * 1000
+# frequency per thousand tweets
+emojis.count$dens <- round(1000*(emojis.count$count/nrow(df)), 1)
+emojis.count$dens.sm <- (emojis.count$count + 1)/(nrow(df)+1)
+emojis.count$rank <- as.numeric(row.names(emojis.count))
+
+# printing summary statistics
+names(emojis.count)
+emojis.count.p <- emojis.count %>% select(name, dens, count, rank)
+# top 10 used emojis
+emojis.count.p %>% filter(rank<=10)
+num.tweets <- nrow(df)
+# number of tweets with emoji
+num.tweets.with.emojis <- length(df_with[df_with > 0])
+print(paste0("the total number of tweets included: ",num.tweets))
+# how many emojis are used by each tweet
+df_with <- rowSums(tweets.emojis.matrix[, c(1:841)]>-1)
+# the highest number of emojis used by one text is 12
+# number of tweets with emoji
+num.tweets.with.emojis <- length(df_with[df_with > 0])
+print(paste0("the total number of tweets with emojis included: ",num.tweets.with.emojis))
+perc_with_emoji <- round(num.tweets.with.emojis/num.tweets*100, 1)
+print(paste0("the percentage of tweets including emojis: ", perc_with_emoji))
+print(paste0("the total number of emojis used: ", total_emoji_used ))
+print(paste0("the total number of unique emojis used: ", unique_emojis))
+max_emoji <- max(df_with)
+print(paste0("the maximum number of emojis used in one tweet: ", max_emoji))
+which(df_with == 12)
+tweets.emojis.matrix[c(745,746,747,748),"tweetid"]
+df %>% dplyr::filter(id %in% c("901491919632699392","901492158208897025",
+                               "901492649550655488","901493188048941056")) %>%
+  dplyr::select(text, url)
+# all of them came from a photographer who promotes a diffferent person each
+# time with plenty of hashtags
+
+# generating the plot
+df.plot <- subset(emojis.count.p, rank <= 10)
+df.plot
+xlab <- 'Rank'
+ylab <- 'Overall Frequency (per 1,000 Tweets)'
+setwd('../emoji_analysis/ios_9_3_emoji_files')
+
+df.plot <- dplyr::arrange(df.plot, name);
+imgs <- lapply(paste0(df.plot$name, '.png'), png::readPNG)
+g <- lapply(imgs, grid::rasterGrob)
+k <- 0.20 * (10/nrow(df.plot)) * max(df.plot$dens)
+df.plot$xsize <- k
+df.plot$ysize <- k
+df.plot$ysize <- k * (df.plot$dens / max(df.plot$dens))
+df.plot <- dplyr::arrange(df.plot, name);
+g1 <- ggplot(data = df.plot, aes(x = rank, y = dens)) +
+  geom_bar(stat = 'identity', fill = 'dodgerblue4') +
+  xlab(xlab) + ylab(ylab) +
+  mapply(function(x, y, i) {
+    annotation_custom(g[[i]], xmin = x-0.5*df.plot$xsize[i], xmax = x+0.5*df.plot$xsize[i], 
+                      ymin = y-0.5*df.plot$ysize[i], ymax = y+0.5*df.plot$ysize[i])},
+    df.plot$rank, df.plot$dens, seq_len(nrow(df.plot))) +
+  scale_x_continuous(expand = c(0, 0), breaks = seq(1, nrow(df.plot), 1), labels = seq(1, nrow(df.plot), 1)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 1.10 * max(df.plot$dens))) +
+  theme(panel.grid.minor.y = element_blank(),
+        axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 14), 
+        axis.text.x  = element_text(size = 8, colour = 'black'), axis.text.y  = element_text(size = 8, colour = 'black')) + 
+  ggtitle("Popular Emojis for Classical Music")
+g1
+
+
+
+
+
+
+
+
 
 
 
