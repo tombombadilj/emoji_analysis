@@ -6,6 +6,7 @@ setwd("/Users/jasonchiu0803/Desktop/data_science_projects/emoji_analysis")
 #downloading and loading necessary packages
 install.packages("twitteR","reshape","ROAuth","RJSONIO")
 install.packages("leaflet")
+install.packages(c("qdap","tm","wordcloud"))
 library(leaflet)
 library(reshape)
 library(twitteR)
@@ -16,6 +17,9 @@ library(stringr)
 library(lubridate)
 library(ggplot2)
 library(htmltools)
+library(qdap)
+library(tm)
+library(wordcloud)
 
 #Setting up twitter 
 api_key <- '...'
@@ -349,13 +353,145 @@ g1 <- ggplot(data = df.plot, aes(x = rank, y = dens)) +
   ggtitle("Popular Emojis for Classical Music")
 g1
 
+# extracting example tweets
+df.plot
+# 1. face throwing a kiss
+emojis %>% filter(name == "face throwing a kiss")
+# no 16 
+a <- tweets.emojis.matrix %>% filter(X16 > -1) %>% select(tweetid)
+dplyr::left_join(a, df, by = c("tweetid"="id")) %>% select(text, url)
 
+# ex1 https://twitter.com/HCA_CatM/status/902345151065899008: used for 
+# Bach piano piece transciption for solo guitar along with the hashtag
+# #ClassicalMusic
 
+# 2. heavy black heart
+emojis %>% filter(name == "heavy black heart")
+# no. 80
+a <- tweets.emojis.matrix %>% filter(X80 > -1) %>% select(tweetid)
+dplyr::left_join(a, df, by = c("tweetid"="id")) %>% select(text, url)
 
+# example: https://twitter.com/Zapca/status/903343148642029569
+# tweet about a piano competition in Helsinki
 
+# 3. mutiple musical notes
+emojis %>% filter(name == "multiple musical notes")
+# no 396 
+a <- tweets.emojis.matrix %>% filter(X396 > -1) %>% select(tweetid)
+dplyr::left_join(a, df, by = c("tweetid"="id")) %>% select(text, url)
 
+# example https://twitter.com/OperaDocFilm/status/903259775432933377
+# from a documentary about opera and retweeting another opera houses 
+# performance
 
+# 4. musical keyboard
+emojis %>% filter(name == "musical keyboard")
+# no 399
+a <- tweets.emojis.matrix %>% filter(X399 > -1) %>% select(tweetid)
+dplyr::left_join(a, df, by = c("tweetid"="id")) %>% select(text, url)
 
+#https://twitter.com/chrislamxword/status/903533935048761345
+# classic FM themed crossword puzzle
 
+# 5. musical note
+emojis %>% filter(name == "musical note")
+# no 395
+a <- tweets.emojis.matrix %>% filter(X395 > -1) %>% select(tweetid)
+dplyr::left_join(a, df, by = c("tweetid"="id")) %>% select(text, url)
+
+# example: https://twitter.com/cmuseorg/status/902969229493780481
+# a classical music and musician fan page advertising for more followers
+# instagram
+
+# 6. musical score
+emojis %>% filter(name == "musical score")
+# no 402
+a <- tweets.emojis.matrix %>% filter(X402 > -1) %>% select(tweetid)
+dplyr::left_join(a, df, by = c("tweetid"="id")) %>% select(text, url)
+
+# example: https://twitter.com/NorthWestGN/status/903205817373122560
+# sharing classical concert
+
+# 7. smiling face with heart-shaped eyes
+emojis %>% filter(name == "smiling face with heart-shaped eyes")
+# no 10
+a <- tweets.emojis.matrix %>% filter(X10 > -1) %>% select(tweetid)
+dplyr::left_join(a, df, by = c("tweetid"="id")) %>% select(text, url)
+
+# example https://twitter.com/KurucovaJana/status/901590997099880448
+# when it's a facial expression - it tends to be more about a perforamnce
+# or an expression rather than advertisement or at the opera or such
+
+# 8. smiling face with smiling eyes
+emojis %>% filter(name == "smiling face with smiling eyes")
+# no 7
+a <- tweets.emojis.matrix %>% filter(X7 > -1) %>% select(tweetid)
+dplyr::left_join(a, df, by = c("tweetid"="id")) %>% select(text, url)
+
+# example: sharing a piece of music 
+# https://twitter.com/OrpheusL/status/902251713121406980
+
+# 9. smiling face with sunglasses
+emojis %>% filter(name == "smiling face with sunglasses")
+# no 722
+a <- tweets.emojis.matrix %>% filter(X722 > -1) %>% select(tweetid)
+dplyr::left_join(a, df, by = c("tweetid"="id")) %>% select(text, url)
+
+# example: https://twitter.com/WildKatLaure/status/903180048357883904
+# classical music PR firm looking for a new staff
+
+# 10 violin
+emojis %>% filter(name == "violin")
+# no 401
+a <- tweets.emojis.matrix %>% filter(X401 > -1) %>% select(tweetid)
+dplyr::left_join(a, df, by = c("tweetid"="id")) %>% select(text, url)
+
+# example https://twitter.com/momoyomusic/status/903587401792094208
+# celebrating composer's bday
+
+#cleaning text data
+names(df)
+text_to_clean <- df$text
+source_df <- VectorSource(df$text)
+tweet_corpus <- VCorpus(source_df)
+# converted tweets to corpus
+tweet_corpus[[1]][1]
+
+#writing a function to preprocess text data :
+# 1. remove white spaces
+# 2. replace abbreviation
+# 3. tolower
+# 4. removing punctuation
+# 5. removing numbers
+# 6. remove stop words - will return later if the texts have too many random
+# words
+
+clean_corpus <- function(corpus){
+  corpus <- tm_map(corpus, content_transformer(stripWhitespace))
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, removeNumbers)
+  corpus <- tm_map(corpus, removeWords,  c(stopwords("en"),
+                                           "another","let","one","amp","now",
+                                           "edabcedbeb","day","today","get","just","download",
+                                           "sure", "via", "time","send",
+                                           "will","best","santos", "please",
+                                           "needs","thanks"))
+  return(corpus)
+}
+
+clean_tweets <- clean_corpus(tweet_corpus)
+clean_tweets[[3]][1]
+tweets_tdm <- TermDocumentMatrix(clean_tweets)
+tweets_tdm
+# after cleaning, a total of 13298 different terms were used for 3687 tweets
+# converting tdm to matrix
+tweets_m <- as.matrix(tweets_tdm)
+term_frequency <- rowSums(tweets_m)
+word_frequency <- data.frame(term = names(term_frequency), num = term_frequency)
+word_frequency_rank <- word_frequency %>% dplyr::arrange(desc(num))
+word_frequency_rank[1:10,]
+wordcloud(word_frequency$term, word_frequency$num,
+          max.words = 600, min.freq = 50, colors = "deepskyblue")
 
 
